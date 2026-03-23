@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 from app.database import Base
-from app.models import user, question, progress  # noqa: F401 - import all models
+from app.models import user, question, progress, practice  # noqa: F401 - import all models
 from app.config import settings
 
 config = context.config

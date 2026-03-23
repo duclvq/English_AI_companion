@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, onboarding, questions, progress
+from app.routers import auth, onboarding, questions, progress, users, practice
 
 app = FastAPI(title="English AI Companion")
 
@@ -16,6 +16,8 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 app.include_router(questions.router, prefix="/questions", tags=["questions"])
 app.include_router(progress.router, prefix="/progress", tags=["progress"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(practice.router, prefix="/practice", tags=["practice"])
 
 
 @app.get("/health")

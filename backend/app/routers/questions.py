@@ -12,6 +12,7 @@ from app.models.progress import UserProgress
 from app.schemas.question import QuestionOut
 from app.services.auth_service import get_current_user
 from app.services import question_router as qr, stats_service
+from app.services.stats_service import apply_daily_reset
 
 router = APIRouter()
 bearer = HTTPBearer()
@@ -39,6 +40,7 @@ async def next_question(
 ):
     if not user.onboarding_complete:
         raise HTTPException(403, "Complete onboarding first")
+    await apply_daily_reset(user.id, db)
     q = await qr.get_next_question(user, db)
     if not q:
         raise HTTPException(404, "No questions available")
@@ -58,13 +60,20 @@ async def answer_question(
         raise HTTPException(404, "Question not found")
     if body.chosen_index not in range(5):
         raise HTTPException(400, "chosen_index must be 0-4")
+    daily_goal = user.daily_goal or 10
     stats = await stats_service.record_answer(
-        user.id, q, body.chosen_index, body.time_spent_ms, db
+        user.id, q, body.chosen_index, body.time_spent_ms, daily_goal, db
     )
     return {
         "is_correct": body.chosen_index == q.correct_index,
         "correct_index": q.correct_index,
         "streak": stats.current_streak,
+        "xp_earned": stats._xp_earned,
+        "daily_xp": stats.daily_xp,
+        "daily_answered_count": stats.daily_answered_count,
+        "daily_correct_count": stats.daily_correct_count,
+        "daily_goal": daily_goal,
+        "daily_goal_complete": stats._daily_goal_complete,
     }
 
 

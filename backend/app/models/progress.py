@@ -28,6 +28,11 @@ class UserStats(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     agent_last_trigger_count: Mapped[int] = mapped_column(Integer, default=0)
+    xp_total: Mapped[int] = mapped_column(Integer, default=0)
+    daily_xp: Mapped[int] = mapped_column(Integer, default=0)
+    daily_answered_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_correct_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_goal_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class AgentSession(Base):
