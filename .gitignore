@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Next.js build
+.next/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+
+# Kiro / Superpowers
+.superpowers/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Package lock (optional, keep if you want reproducible installs)
+# frontend/package-lock.json
