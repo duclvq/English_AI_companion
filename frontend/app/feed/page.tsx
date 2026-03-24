@@ -154,13 +154,53 @@ export default function FeedPage() {
   );
 }
 
+const GEN_STEPS = [
+  "Analyzing your performance...",
+  "Identifying weak areas...",
+  "Crafting personalized questions...",
+  "Almost there...",
+];
+
 function CourseCompleteScreen({ data, onGenerate, generating }: {
   data: CourseComplete;
   onGenerate: () => void;
   generating: boolean;
 }) {
+  const [stepIdx, setStepIdx] = useState(0);
   const weakEntries = Object.entries(data.weak_topics).sort((a, b) => a[1] - b[1]);
   const strongEntries = Object.entries(data.strong_topics).sort((a, b) => b[1] - a[1]);
+
+  useEffect(() => {
+    if (!generating) { setStepIdx(0); return; }
+    const timer = setInterval(() => {
+      setStepIdx((i) => (i < GEN_STEPS.length - 1 ? i + 1 : i));
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [generating]);
+
+  if (generating) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[85vh] p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-lg w-full mx-auto text-center">
+          <div className="text-5xl mb-4 animate-bounce">🧠</div>
+          <h2 className="text-lg font-bold text-slate-800 mb-2">Generating Questions</h2>
+          <p className="text-sm text-slate-500 mb-6">{GEN_STEPS[stepIdx]}</p>
+          <div className="w-full bg-slate-100 rounded-full h-2 mb-4 overflow-hidden">
+            <div
+              className="bg-brand h-2 rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${Math.min(((stepIdx + 1) / GEN_STEPS.length) * 100, 95)}%` }}
+            />
+          </div>
+          <div className="flex justify-center gap-1.5">
+            {GEN_STEPS.map((_, i) => (
+              <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i <= stepIdx ? "bg-brand" : "bg-slate-200"}`} />
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-4">AI is creating 20 questions focused on your weak areas</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] p-4">
@@ -218,16 +258,9 @@ function CourseCompleteScreen({ data, onGenerate, generating }: {
 
         <button
           onClick={onGenerate}
-          disabled={generating}
-          className="w-full bg-brand text-white py-3 rounded-xl font-medium text-sm hover:bg-green-700 transition disabled:opacity-50"
+          className="w-full bg-brand text-white py-3 rounded-xl font-medium text-sm hover:bg-green-700 transition"
         >
-          {generating ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin">⏳</span> Generating new questions...
-            </span>
-          ) : (
-            "🧠 Generate personalized questions"
-          )}
+          🧠 Generate personalized questions
         </button>
         <p className="text-xs text-slate-400 mt-2">AI will create 20 new questions focused on your weak areas</p>
       </div>
