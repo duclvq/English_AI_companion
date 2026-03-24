@@ -33,7 +33,7 @@ class AnswerRequest(BaseModel):
     time_spent_ms: int = 0
 
 
-@router.get("/next", response_model=QuestionOut)
+@router.get("/next")
 async def next_question(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
@@ -42,9 +42,61 @@ async def next_question(
         raise HTTPException(403, "Complete onboarding first")
     await apply_daily_reset(user.id, db)
     q = await qr.get_next_question(user, db)
+    if q:
+        return QuestionOut(
+            id=q.id, type=q.type, difficulty=q.difficulty,
+            topic=q.topic, question_text=q.question_text, choices=q.choices,
+        )
+    # No questions left — return performance summary
+    from app.models.progress import UserStats
+    result = await db.execute(select(UserStats).where(UserStats.user_id == user.id))
+    stats = result.scalar_one_or_none()
+    return {
+        "course_complete": True,
+        "total_answered": stats.total_answered if stats else 0,
+        "correct_count": stats.correct_count if stats else 0,
+        "accuracy": round(stats.correct_count / stats.total_answered * 100) if stats and stats.total_answered else 0,
+        "weak_topics": stats.weak_topics if stats else {},
+        "strong_topics": stats.strong_topics if stats else {},
+        "streak": stats.current_streak if stats else 0,
+        "xp_total": stats.xp_total if stats else 0,
+    }
+
+
+@router.post("/{question_id}/skip")
+async def skip_question(
+    question_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """User doesn't know the answer — reveal correct answer, track as wrong for topic analysis, no streak penalty."""
+    result = await db.execute(select(Question).where(Question.id == question_id))
+    q = result.scalar_one_or_none()
     if not q:
-        raise HTTPException(404, "No questions available")
-    return q
+        raise HTTPException(404, "Question not found")
+    daily_goal = user.daily_goal or 10
+    stats = await stats_service.record_skip(user.id, q, daily_goal, db)
+    return {
+        "correct_index": q.correct_index,
+        "streak": stats.current_streak,
+        "xp_earned": 0,
+        "daily_xp": stats.daily_xp,
+        "daily_answered_count": stats.daily_answered_count,
+        "daily_correct_count": stats.daily_correct_count,
+        "daily_goal": daily_goal,
+        "daily_goal_complete": stats._daily_goal_complete,
+    }
+
+
+@router.post("/generate")
+async def generate_questions(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze user performance and generate new targeted questions via Qwen API."""
+    from app.services.question_generator import generate_for_user
+    count = await generate_for_user(user, db)
+    return {"generated": count}
 
 
 @router.post("/{question_id}/answer")

@@ -11,18 +11,20 @@ interface Props {
     choices: string[];
   };
   onAnswered: (questionId: string, chosenIndex: number, isCorrect: boolean, correctIndex: number, streak: number) => void;
+  onSkipped: (questionId: string, correctIndex: number) => void;
 }
 
 const DIFF_LABELS = ["", "Beginner", "Intermediate", "Advanced"];
 const DIFF_COLORS = ["", "bg-green-100 text-green-700", "bg-yellow-100 text-yellow-700", "bg-red-100 text-red-700"];
 
-export default function QuestionCard({ question, onAnswered }: Props) {
+export default function QuestionCard({ question, onAnswered, onSkipped }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<{ is_correct: boolean; correct_index: number; streak: number } | null>(null);
+  const [skipped, setSkipped] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleChoice(idx: number) {
-    if (selected !== null || submitting) return;
+    if (selected !== null || submitting || skipped) return;
     setSelected(idx);
     setSubmitting(true);
 
@@ -43,6 +45,26 @@ export default function QuestionCard({ question, onAnswered }: Props) {
     }
   }
 
+  async function handleSkip() {
+    if (selected !== null || submitting || skipped) return;
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/questions/${question.id}/skip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSkipped(true);
+        setResult({ is_correct: false, correct_index: data.correct_index, streak: data.streak });
+        onSkipped(question.id, data.correct_index);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function choiceClass(idx: number) {
     const base = "w-full text-left px-4 py-3.5 rounded-xl border text-sm transition-all duration-200";
     if (result) {
@@ -56,6 +78,7 @@ export default function QuestionCard({ question, onAnswered }: Props) {
 
   const diffLabel = DIFF_LABELS[question.difficulty] || "";
   const diffColor = DIFF_COLORS[question.difficulty] || "";
+  const answered = selected !== null || skipped;
 
   return (
     <div className={`flex flex-col justify-center min-h-screen p-4 snap-start ${result ? (result.is_correct ? "flash-green" : "flash-red") : ""}`}>
@@ -67,16 +90,22 @@ export default function QuestionCard({ question, onAnswered }: Props) {
         <p className="text-lg font-semibold text-slate-800 mb-6 leading-relaxed">{question.question_text}</p>
         <div className="space-y-3">
           {question.choices.map((c, i) => (
-            <button key={i} onClick={() => handleChoice(i)} disabled={selected !== null}
+            <button key={i} onClick={() => handleChoice(i)} disabled={answered}
               className={choiceClass(i)}>
               <span className="inline-block w-6 text-slate-400 font-medium">{String.fromCharCode(65 + i)}.</span>
               {c}
             </button>
           ))}
         </div>
+        {!answered && (
+          <button onClick={handleSkip} disabled={submitting}
+            className="w-full mt-4 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm text-slate-400 hover:text-slate-600 hover:border-slate-400 transition-all">
+            🤷 I don&apos;t know — show me the answer
+          </button>
+        )}
         {result && (
-          <div className={`mt-4 text-center text-sm font-medium ${result.is_correct ? "text-green-600" : "text-red-500"}`}>
-            {result.is_correct ? `✓ Correct! Streak: ${result.streak}` : "✗ Wrong answer"}
+          <div className={`mt-4 text-center text-sm font-medium ${result.is_correct ? "text-green-600" : skipped ? "text-amber-500" : "text-red-500"}`}>
+            {result.is_correct ? `✓ Correct! Streak: ${result.streak}` : skipped ? "📖 Here's the correct answer" : "✗ Wrong answer"}
           </div>
         )}
       </div>

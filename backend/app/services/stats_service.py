@@ -92,3 +92,60 @@ async def record_answer(
     stats._xp_earned = xp_earned
     stats._daily_goal_complete = daily_goal_complete
     return stats
+
+
+async def record_skip(
+    user_id: uuid.UUID,
+    question: Question,
+    daily_goal: int,
+    db: AsyncSession,
+) -> UserStats:
+    """Record a skipped question — counts for topic tracking but no streak penalty."""
+    db.add(UserProgress(
+        user_id=user_id,
+        question_id=question.id,
+        chosen_index=-1,
+        is_correct=False,
+        time_spent_ms=0,
+    ))
+
+    result = await db.execute(
+        select(UserStats).where(UserStats.user_id == user_id).with_for_update()
+    )
+    stats = result.scalar_one()
+
+    # No streak reset on skip — only 24h inactivity resets streak
+    if stats.last_active_at and datetime.utcnow() - stats.last_active_at > timedelta(hours=24):
+        stats.current_streak = 0
+
+    stats.total_answered += 1
+    stats.daily_answered_count += 1
+
+    # Topic accuracy — treat skip as wrong
+    topic = question.topic
+    weak = dict(stats.weak_topics or {})
+    strong = dict(stats.strong_topics or {})
+    prev = weak.get(topic, strong.get(topic, 0.5))
+    updated = round(prev * 0.8, 3)  # 0.0 * 0.2 for wrong
+    if updated < 0.6:
+        weak[topic] = updated
+        strong.pop(topic, None)
+    else:
+        strong[topic] = updated
+        weak.pop(topic, None)
+    stats.weak_topics = weak
+    stats.strong_topics = strong
+
+    # Daily goal
+    daily_goal_complete = False
+    if stats.daily_answered_count >= daily_goal and stats.daily_goal_completed_at is None:
+        stats.daily_goal_completed_at = datetime.utcnow()
+        daily_goal_complete = True
+
+    stats.last_active_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(stats)
+
+    stats._xp_earned = 0
+    stats._daily_goal_complete = daily_goal_complete
+    return stats
